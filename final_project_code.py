@@ -6,6 +6,7 @@ from matplotlib.pyplot import plot
 import matplotlib.pyplot as plt
 from numpy import linspace
 import scipy.signal as signal
+from numpy.linalg import svd
 
 curr_dir = os.path.dirname(os.path.realpath(__file__))
 data_path = os.path.join(curr_dir, 'data', 'data_files', 'imzmLs')
@@ -91,13 +92,19 @@ def pca():
     df_injured_feature_set = pd.read_csv('aggregate_feature_table_injured')
     num_control_pixels = len(df_control_feature_set)
     num_injured_pixels = len(df_injured_feature_set)
-    
+    vec_control_label = np.ones(num_control_pixels)
+    vec_injured_label = -1*np.ones(num_injured_pixels)
+    vec_combined_labels = np.concatenate((vec_control_label,vec_injured_label), axis=0)
+    df_combined_feature_set = pd.concat([df_control_feature_set, df_injured_feature_set])
+    [U, S, V] = svd(df_combined_feature_set.values)
+    print
+
 
 def main():
     control_set = 'Control_Day03_01.imzML'
     injured_set = 'Injured_Day03_01.imzML'
-    save_data_to_csv(injured_set)
-    build_feature_table('injured')
+    save_data_to_csv(control_set)
+    build_feature_table('control')
 
 
     # plt.scatter(x, y)
