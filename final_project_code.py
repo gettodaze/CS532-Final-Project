@@ -4,9 +4,11 @@ import os
 from pyimzml.ImzMLParser import ImzMLParser
 from matplotlib.pyplot import plot
 import matplotlib.pyplot as plt
-from numpy import linspace
+from sklearn.cluster import KMeans
+from numpy import linspace, dot
 import scipy.signal as signal
 from numpy.linalg import svd
+import seaborn as sns
 
 curr_dir = os.path.dirname(os.path.realpath(__file__))
 data_path = os.path.join(curr_dir, 'data', 'data_files', 'imzmLs')
@@ -87,25 +89,63 @@ def save_data_to_csv(filename):
     df2.to_csv('intensities.csv')
 
 
+def find_rank(S):
+    aggregate_sum = sum(S)
+    cum_sum = 0
+    for i, v in enumerate(S):
+        cum_sum = cum_sum + v
+        cum_sum_percent = cum_sum / aggregate_sum
+        if cum_sum_percent > .99:
+            return i
+
+
 def pca():
-    df_control_feature_set = pd.read_csv('aggregate_feature_table_control')
-    df_injured_feature_set = pd.read_csv('aggregate_feature_table_injured')
+    df_control_feature_set = pd.read_csv('aggregated_feature_table_control.csv')
+    df_injured_feature_set = pd.read_csv('aggregated_feature_table_injured.csv')
     num_control_pixels = len(df_control_feature_set)
     num_injured_pixels = len(df_injured_feature_set)
     vec_control_label = np.ones(num_control_pixels)
     vec_injured_label = -1*np.ones(num_injured_pixels)
-    vec_combined_labels = np.concatenate((vec_control_label,vec_injured_label), axis=0)
+    vec_combined_labels = np.concatenate((vec_control_label, vec_injured_label), axis=0)
     df_combined_feature_set = pd.concat([df_control_feature_set, df_injured_feature_set])
-    [U, S, V] = svd(df_combined_feature_set.values)
+    del df_combined_feature_set[df_combined_feature_set.columns[-1]]
+    del df_combined_feature_set['Unnamed: 0']
+    # df_combined_feature_set.to_excel('combined_feature_set.xlsx')
+    df_combined_feature_set_standardized = (df_combined_feature_set - df_combined_feature_set.mean()) / df_combined_feature_set.std()
+    df_combined_feature_set_standardized = df_combined_feature_set_standardized.fillna(0)
+
+    kmeans = KMeans(n_clusters=3)
+    kmeans.fit(df_combined_feature_set_standardized)
+    y_kmeans = kmeans.predict(df_combined_feature_set_standardized)
+    df_combined_feature_set_standardized['clusters'] = y_kmeans
+
+    [U, S, V] = svd(df_combined_feature_set_standardized.values)
+    S_DIAG = np.diag(S)
+    lower_rank_approximation = dot(S_DIAG[:2, :2], U[:2,:]).transpose()
+    df_clusters = pd.DataFrame(lower_rank_approximation)
+    df_clusters['clusters'] = y_kmeans
+
+    x = df_clusters[0]
+    y = df_clusters[1]
+    plt.scatter(x, y, c=y_kmeans, s=50, cmap='viridis')
+
+    centers = kmeans.cluster_centers_
+    plt.scatter(centers[:, 0], centers[:, 1], c='black', s=200, alpha=0.5)
+
+
+    plt.title('Clusters Wattage vs Duration')
+    plt.xlabel('Wattage')
+    plt.ylabel('Duration')
+    plt.show()
     print
 
 
 def main():
     control_set = 'Control_Day03_01.imzML'
     injured_set = 'Injured_Day03_01.imzML'
-    save_data_to_csv(control_set)
-    build_feature_table('control')
-
+    # save_data_to_csv(control_set)
+    # build_feature_table('control')
+    pca()
 
     # plt.scatter(x, y)
     # plt.show()
