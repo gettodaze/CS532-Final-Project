@@ -119,7 +119,7 @@ def select_tissue_region(df_feature_set):
     df_control_feature_set_standardized = df_control_feature_set_standardized.fillna(0)
     [U, S, V] = svd(df_control_feature_set_standardized.values)
     S_DIAG = np.diag(S)
-    dim_red_data = dot(S_DIAG[:2, :2], U[:, :2].transpose()).transpose()
+    dim_red_data = dot(U[:, :2], S_DIAG[:2, :2])
     kmeans = KMeans(n_clusters=3, n_init=15)
     kmeans.fit(dim_red_data)
     y_kmeans = kmeans.predict(dim_red_data)
@@ -196,6 +196,7 @@ def pca():
 
 
 def main():
+    pass
     # # control_set = 'Control_Day14_01.imzML'
     # injured_set = 'Injured_Day03_03.imzML'
     # # save_data_to_csv(control_set, 'control')

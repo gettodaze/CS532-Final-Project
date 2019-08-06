@@ -49,6 +49,34 @@ def pca(df):
     # plt.show()
     return svd(covariance_mat, full_matrices=False)
 
+def dim_reduction(df):
+    U, S, Vh = pca(df)
+    total_s = sum(S)
+    cumsum = 0
+    for i in range(len(S)):
+        cumsum += S[i]/total_s
+        if cumsum > .99:
+            break;
+    return dot(dot(U,S),Vh)
+
+def select_tissue_region(df_feature_set):
+    [U, S, V] = pca(df_feature_set)
+    S_DIAG = np.diag(S)
+    dim_red_data = dot(U[:, :2], S_DIAG[:2, :2])
+    kmeans = KMeans(n_clusters=3, n_init=15)
+    kmeans.fit(df_feature_set)
+    y_kmeans = kmeans.predict(df_feature_set)
+    df_clusters = df_feature_set
+    df_clusters['clusters'] = y_kmeans
+    unique, counts = np.unique(y_kmeans, return_counts=True)
+    cluster_counts = dict(zip(unique, counts))
+    white_space_key = max(cluster_counts, key=cluster_counts.get)
+    df_remove_white_space = df_clusters[df_clusters['clusters'] != white_space_key]
+
+    del df_remove_white_space['clusters']
+    return df_remove_white_space
+
+
 def kmeans(df, n_clusters):
     kmeans = KMeans(n_clusters=n_clusters)
     kmeans.fit(df.values)
@@ -72,23 +100,46 @@ def day_groups(files_and_meta):
         ret[(fam['label'], fam['day'])].append((fam, read_and_process_csv(fam['filepath'])))
     return ret
 
+def filter_meta_day_exp(day, experiment):
+    experiments = get_filepaths_and_meta(input_folder);
+    ret = filter(lambda x: x['day'] == day and x['experiment'] == experiment,experiments)
+    return list(ret)
+
+def get_x_y(day, experiment):
+    meta = filter_meta_day_exp(day, experiment)
+    x0 = select_tissue_region(read_and_process_csv(meta[0]['filepath'])).values
+    y0 = np.ones(len(x0)) * meta[0]['label']
+    x1 = select_tissue_region(read_and_process_csv(meta[1]['filepath'])).values
+    y1 = np.ones(len(x1)) * meta[1]['label']
+    return np.vstack((x0,x1)), np.append(y0,y1)
+
 if __name__ == '__main__':
-    input_folder = r"C:\Users\John\Documents\School\19 Summer\532 ML\CS 532 Project\Data\csvData\aggregates (bin=250)"
-    files_and_meta = get_filepaths_and_meta(input_folder)
-    day_grouped = day_groups(files_and_meta)
-    # for i in range(len(files_and_meta)):
-    #     df = read_and_process_csv(files_and_meta[i]['filepath'])
-    for key in day_grouped.keys():
-        dfs = day_grouped[key]
-        label, day = key
-        full_df = pd.DataFrame()
-        for (meta,df) in dfs:
-            full_df = full_df.append(df)
-        # U, S, Vh = pca(full_df)
-        # graph_ndim_kmeans(full_df,2)
-        kmeans_obj = kmeans(full_df, 2)
-        for (meta,df) in dfs:
-            clusters = kmeans_obj.predict(df)
-            plt.imshow(clusters.reshape(meta['x'], meta['y']))
-            plt.show()
-            plt.title(f'Label: {label} | Day: {day}')
+    input_folder = r"\\wfs1\users$\mccloskey\Downloads\csvData-20190806T210426Z-001\csvData\aggregates (bin=250)"
+    X, y = get_x_y(3,1)
+    from sklearn import linear_model
+    reg = linear_model.LinearRegression()
+    reg.fit(X,y)
+    print(reg.coef_)
+    X_train, X_test, y_train, y_test = train_test_split(X,y, test_size = 0.4, random_state = 0)
+
+    clf = svm.SVC(kernel='linear', C=1).fit(X_train, y_train)
+    clf.score(X_test, y_test)
+
+    # day_grouped = day_groups(files_and_meta)
+    # # for i in range(len(files_and_meta)):
+    # #     df = read_and_process_csv(files_and_meta[i]['filepath'])
+    # data
+    # for key in day_grouped.keys():
+    #     dfs = day_grouped[key]
+    #     label, day = key
+    #     # U, S, Vh = pca(full_df)
+    #     # graph_ndim_kmeans(full_df,2)
+    #     for (meta,df) in dfs:
+    #         tissue = select_tissue_region(df)
+    #
+    #         # dim_reduction(df)
+    #         # kmeans_obj = kmeans(full_df, 2)
+    #         # clusters = kmeans_obj.predict(df)
+    #         # plt.imshow(clusters.reshape(meta['x'], meta['y']))
+    #         # plt.title(f'Label: {label} | Day: {day}.{meta["experiment"]}')
+    #         # plt.show()
